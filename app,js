@@ -1,0 +1,151 @@
+import React, { useState, useEffect, useRef } from "react";
+
+const GRID_SIZE = 15;
+const INITIAL_SNAKE = [{ x: 7, y: 7 }];
+const INITIAL_DIR = { x: 1, y: 0 };
+
+function App() {
+  const [snake, setSnake] = useState(INITIAL_SNAKE);
+  const [direction, setDirection] = useState(INITIAL_DIR);
+  const [apple, setApple] = useState(randomApple(INITIAL_SNAKE));
+  const [gameOver, setGameOver] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [score, setScore] = useState(0);
+
+  const dirRef = useRef(direction);
+
+  useEffect(() => {
+    dirRef.current = direction;
+  }, [direction]);
+
+  // Keyboard controls
+  useEffect(() => {
+    function handleKey(e) {
+      let newDir;
+      if (e.key === "ArrowUp") newDir = { x: 0, y: -1 };
+      if (e.key === "ArrowDown") newDir = { x: 0, y: 1 };
+      if (e.key === "ArrowLeft") newDir = { x: -1, y: 0 };
+      if (e.key === "ArrowRight") newDir = { x: 1, y: 0 };
+      if (!newDir) return;
+
+      const cur = dirRef.current;
+      if (cur.x + newDir.x === 0 && cur.y + newDir.y === 0) return; // prevent reverse
+      setDirection(newDir);
+    }
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, []);
+
+  // Game loop
+  useEffect(() => {
+    if (!running || gameOver) return;
+    const interval = setInterval(() => {
+      setSnake(prev => {
+        const head = prev[0];
+        const newHead = { x: head.x + dirRef.current.x, y: head.y + dirRef.current.y };
+
+        // collision with walls
+        if (
+          newHead.x < 0 ||
+          newHead.x >= GRID_SIZE ||
+          newHead.y < 0 ||
+          newHead.y >= GRID_SIZE
+        ) {
+          setGameOver(true);
+          setRunning(false);
+          return prev;
+        }
+
+        // collision with itself
+        if (prev.some(c => c.x === newHead.x && c.y === newHead.y)) {
+          setGameOver(true);
+          setRunning(false);
+          return prev;
+        }
+
+        const ateApple = newHead.x === apple.x && newHead.y === apple.y;
+        let newSnake = [newHead, ...prev];
+        if (!ateApple) {
+          newSnake.pop();
+        } else {
+          setApple(randomApple(newSnake));
+          setScore(s => s + 1); // ✅ increase score
+        }
+        return newSnake;
+      });
+    }, 200);
+
+    return () => clearInterval(interval);
+  }, [running, gameOver, apple]);
+
+  function startGame() {
+    setSnake(INITIAL_SNAKE);
+    setDirection(INITIAL_DIR);
+    setApple(randomApple(INITIAL_SNAKE));
+    setGameOver(false);
+    setRunning(true);
+    setScore(0); // ✅ reset score
+  }
+
+  return (
+    <div style={{ textAlign: "center", padding: "20px" }}>
+      <h2>Simple Snake Game</h2>
+      <h3>Score: {score}</h3> {/* ✅ Display score */}
+
+      <div
+        style={{
+          margin: "20px auto",
+          display: "grid",
+          gridTemplateColumns: `repeat(${GRID_SIZE}, 20px)`,
+          gridTemplateRows: `repeat(${GRID_SIZE}, 20px)`,
+          gap: "1px",
+          background: "#ccc",
+          width: GRID_SIZE * 21,
+          height: GRID_SIZE * 21,
+        }}
+      >
+        {Array.from({ length: GRID_SIZE * GRID_SIZE }).map((_, i) => {
+          const x = i % GRID_SIZE;
+          const y = Math.floor(i / GRID_SIZE);
+          const isHead = snake[0].x === x && snake[0].y === y;
+          const isBody = snake.some((s, idx) => idx > 0 && s.x === x && s.y === y);
+          const isApple = apple.x === x && apple.y === y;
+          return (
+            <div
+              key={i}
+              style={{
+                width: "20px",
+                height: "20px",
+                background: isHead
+                  ? "green"
+                  : isBody
+                  ? "lightgreen"
+                  : isApple
+                  ? "red"
+                  : "white",
+              }}
+            />
+          );
+        })}
+      </div>
+
+      {gameOver && <h3 style={{ color: "red" }}>Game Over</h3>}
+      <button onClick={startGame}>
+        {gameOver ? "Restart" : running ? "Reset" : "Start"}
+      </button>
+    </div>
+  );
+}
+
+function randomApple(snakeCells) {
+  const occupied = new Set(snakeCells.map(c => `${c.x},${c.y}`));
+  let free = [];
+  for (let x = 0; x < GRID_SIZE; x++) {
+    for (let y = 0; y < GRID_SIZE; y++) {
+      if (!occupied.has(`${x},${y}`)) free.push({ x, y });
+    }
+  }
+  return free[Math.floor(Math.random() * free.length)];
+}
+
+export default App;
